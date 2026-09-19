@@ -1,0 +1,13 @@
+challenge/
+
+.env
+.env.*
+!.env.example
+
+nodu_modules/
+dist/
+
+__pycache__/
+*.pyc
+.venv/
+venv/
