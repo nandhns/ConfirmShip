@@ -36,7 +36,7 @@ docker compose up --build (Or use Docker Desktop)
 
 Do not develop directly on `main`
 
-Before startinf a new task, pull the latest changes and create a new branch. 
+Before starting a new task, pull the latest changes and create a new branch. 
 
 Branch naming: 
 * feature/<name> : new features 
