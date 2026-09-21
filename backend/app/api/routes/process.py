@@ -62,7 +62,11 @@ def _apply_corrections(verif: dict, email_id: str) -> None:
 
 
 @router.post("", response_model=ProcessedEmail)
-def process_email_payload(email: EmailInput, count_attempt: bool = True):
+def process_email_payload(
+    email: EmailInput,
+    count_attempt: bool = False,
+    persist_review: bool = False,
+):
     """Processes an arbitrary email payload sent in the request body."""
     email_dict = email.model_dump(by_alias=True)
     classification = classify_email(email_dict)
@@ -71,7 +75,7 @@ def process_email_payload(email: EmailInput, count_attempt: bool = True):
     verif = verify_email_record(email_dict, classification.category, str(DATA_DIR))
     _apply_corrections(verif, email.email_id)
 
-    if verif.get("status") == "NEEDS_REVIEW":
+    if persist_review and verif.get("status") == "NEEDS_REVIEW":
         save_review(
             email.email_id,
             status="needs_review",
@@ -165,7 +169,11 @@ def _load_email_by_id(email_id: str) -> EmailInput:
 
 @router.post("/{email_id}/retry", response_model=ProcessedEmail)
 def retry_email(email_id: str):
-    return process_email_payload(_load_email_by_id(email_id))
+    return process_email_payload(
+        _load_email_by_id(email_id),
+        count_attempt=True,
+        persist_review=True,
+    )
 
 
 @router.get("/reviews/{email_id}", response_model=ReviewRecord)
@@ -179,5 +187,5 @@ def get_review_record(email_id: str):
 @router.post("/reviews/{email_id}", response_model=ProcessedEmail)
 def submit_review_correction(email_id: str, update: ReviewUpdate):
     add_correction(email_id, update.model_dump())
-    return process_email_payload(_load_email_by_id(email_id), count_attempt=False)
+    return process_email_payload(_load_email_by_id(email_id), persist_review=True)
 

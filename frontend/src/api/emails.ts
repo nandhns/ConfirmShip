@@ -105,36 +105,29 @@ export function getInboxFilters(emails: EmailItem[]) {
   ] as const;
 }
 
-async function processEmail(email: BackendEmail): Promise<ProcessedEmail> {
-  const response = await fetch('/api/process', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(email),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to process ${email.email_id}: ${response.status}`);
-  }
-
-  return response.json();
-}
-
 async function fetchProcessedEmails() {
-  const response = await fetch('/api/emails');
+  const [emailResponse, processedResponse] = await Promise.all([
+    fetch('/api/emails'),
+    fetch('/api/process/processed'),
+  ]);
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch emails: ${response.status}`);
+  if (!emailResponse.ok) {
+    throw new Error(`Failed to fetch emails: ${emailResponse.status}`);
+  }
+  if (!processedResponse.ok) {
+    throw new Error(`Failed to fetch processed emails: ${processedResponse.status}`);
   }
 
-  const emails: BackendEmail[] = await response.json();
-  return Promise.all(
-    emails.map(async (email) => ({
-      email,
-      processed: await processEmail(email),
-    }))
-  );
+  const [emails, processedEmails] = await Promise.all([
+    emailResponse.json() as Promise<BackendEmail[]>,
+    processedResponse.json() as Promise<ProcessedEmail[]>,
+  ]);
+  const processedById = new Map(processedEmails.map((item) => [item.email_id, item]));
+
+  return emails.flatMap((email) => {
+    const processed = processedById.get(email.email_id);
+    return processed ? [{ email, processed }] : [];
+  });
 }
 
 function toEmailItem(
@@ -222,8 +215,9 @@ export async function fetchEmailProcessing(
   return response.json();
 }
 
-export async function fetchReviewRecord(emailId: string): Promise<ReviewRecord> {
+export async function fetchReviewRecord(emailId: string): Promise<ReviewRecord | null> {
   const response = await fetch(`/api/process/reviews/${emailId}`);
+  if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Failed to fetch review: ${response.status}`);
   return response.json();
 }

@@ -1,10 +1,14 @@
 """Small durable store for human review decisions and processing attempts."""
 import json
+from threading import RLock
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+
+
+_store_lock = RLock()
 
 
 def _store_path() -> Path:
@@ -16,20 +20,22 @@ def _store_path() -> Path:
 
 
 def _read() -> dict[str, dict[str, Any]]:
-    path = _store_path()
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    with _store_lock:
+        path = _store_path()
+        if not path.exists():
+            return {}
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
 
 
 def _write(records: dict[str, dict[str, Any]]) -> None:
-    path = _store_path()
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(records, indent=2), encoding="utf-8")
-    temporary.replace(path)
+    with _store_lock:
+        path = _store_path()
+        temporary = path.with_suffix(f".{__import__('os').getpid()}.tmp")
+        temporary.write_text(json.dumps(records, indent=2), encoding="utf-8")
+        temporary.replace(path)
 
 
 def get_review(email_id: str) -> dict[str, Any] | None:
@@ -37,12 +43,13 @@ def get_review(email_id: str) -> dict[str, Any] | None:
 
 
 def save_review(email_id: str, **values: Any) -> dict[str, Any]:
-    records = _read()
-    current = records.get(email_id, {"email_id": email_id, "corrections": [], "attempts": 0})
-    current.update(values, updated_at=datetime.now(timezone.utc).isoformat())
-    records[email_id] = current
-    _write(records)
-    return current
+    with _store_lock:
+        records = _read()
+        current = records.get(email_id, {"email_id": email_id, "corrections": [], "attempts": 0})
+        current.update(values, updated_at=datetime.now(timezone.utc).isoformat())
+        records[email_id] = current
+        _write(records)
+        return current
 
 
 def add_correction(email_id: str, correction: dict[str, Any]) -> dict[str, Any]:
