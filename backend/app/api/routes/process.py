@@ -73,6 +73,16 @@ def process_email_payload(
     if count_attempt:
         increment_attempt(email.email_id)
     verif = verify_email_record(email_dict, classification.category, str(DATA_DIR))
+    if classification.is_uncertain:
+        verif.update(
+            status="NEEDS_REVIEW",
+            review_reason="uncertain_extraction",
+            review_details=classification.uncertainty_reason or "Classification or extraction confidence is uncertain",
+            defect_fields=[],
+            has_defect=False,
+            evidence=email.attachments,
+            retryable=False,
+        )
     _apply_corrections(verif, email.email_id)
 
     if persist_review and verif.get("status") == "NEEDS_REVIEW":
@@ -186,6 +196,16 @@ def get_review_record(email_id: str):
 
 @router.post("/reviews/{email_id}", response_model=ProcessedEmail)
 def submit_review_correction(email_id: str, update: ReviewUpdate):
-    add_correction(email_id, update.model_dump())
-    return process_email_payload(_load_email_by_id(email_id), persist_review=True)
+    email = _load_email_by_id(email_id)
+    current = process_email_payload(email)
+    old_value = next(
+        (
+            getattr(comparison, f"{update.document}_value")
+            for comparison in current.verification.field_comparisons
+            if comparison.field == update.field
+        ),
+        None,
+    )
+    add_correction(email_id, update.model_dump(), old_value=old_value)
+    return process_email_payload(email, persist_review=True)
 

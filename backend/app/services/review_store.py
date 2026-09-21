@@ -52,12 +52,27 @@ def save_review(email_id: str, **values: Any) -> dict[str, Any]:
         return current
 
 
-def add_correction(email_id: str, correction: dict[str, Any]) -> dict[str, Any]:
+def add_correction(
+    email_id: str,
+    correction: dict[str, Any],
+    old_value: str | None = None,
+) -> dict[str, Any]:
     current = get_review(email_id) or {"email_id": email_id, "corrections": [], "attempts": 0}
     corrections = [item for item in current.get("corrections", [])
                    if not (item["field"] == correction["field"] and item["document"] == correction["document"])]
     corrections.append(correction)
-    return save_review(email_id, corrections=corrections, status="corrected")
+    audit_log = list(current.get("audit_log", []))
+    audit_log.append({
+        "action": "correction",
+        "field": correction["field"],
+        "document": correction["document"],
+        "old_value": old_value,
+        "new_value": correction["value"],
+        "reviewer": correction.get("reviewer", "human-reviewer"),
+        "comment": correction.get("comment"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    return save_review(email_id, corrections=corrections, audit_log=audit_log, status="corrected")
 
 
 def increment_attempt(email_id: str) -> int:

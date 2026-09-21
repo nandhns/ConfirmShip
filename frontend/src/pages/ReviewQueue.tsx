@@ -8,7 +8,8 @@ import { ReviewItem } from '../types';
 const filters = [
 { id: 'all', label: 'All' },
 { id: 'review-required', label: 'Document' },
-{ id: 'low-confidence', label: 'Low confidence' }];
+{ id: 'low-confidence', label: 'Low confidence' },
+{ id: 'mismatch', label: 'Mismatch' }];
 
 
 export function ReviewQueue() {
