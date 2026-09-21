@@ -74,7 +74,7 @@ export function ReviewQueue() {
               <li key={item.id}>
                 <button
                   type="button"
-                  onClick={() => navigate(`/email/${item.id}`)}
+                  onClick={() => navigate(`/review/${item.id}`)}
                   className={`flex w-full gap-3 rounded-2xl border px-4 py-3.5 text-left shadow-card transition-colors duration-150 ${
                   critical ?
                   'border-danger/20 bg-danger-soft/60 hover:bg-danger-soft' :

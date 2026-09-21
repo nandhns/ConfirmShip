@@ -15,7 +15,7 @@ def is_blank_value(val: Any) -> bool:
 def normalize_text(val: Any) -> str | None:
     if is_blank_value(val):
         return None
-    val_str = str(val).strip()
+    val_str = re.sub(r"[|;]+", " ", str(val).strip())
     return re.sub(r"\s+", " ", val_str).upper()
 
 

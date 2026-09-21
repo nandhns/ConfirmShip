@@ -1,103 +1,125 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { SearchIcon } from 'lucide-react';
+import { RefreshCwIcon, SaveIcon } from 'lucide-react';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { getReview } from '../data/reviews';
+import {
+  BackendEmail,
+  fetchEmailDetail,
+  fetchEmailProcessing,
+  fetchReviewRecord,
+  ProcessedEmail,
+  ReviewRecord,
+  retryEmail,
+  submitReviewCorrection,
+} from '../api/emails';
 
 export function HumanReview() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const item = getReview(id);
-  const critical = item.reason === 'low-confidence';
+  const [email, setEmail] = useState<BackendEmail | null>(null);
+  const [processed, setProcessed] = useState<ProcessedEmail | null>(null);
+  const [record, setRecord] = useState<ReviewRecord | null>(null);
+  const [field, setField] = useState('');
+  const [document, setDocument] = useState<'si' | 'bl'>('bl');
+  const [value, setValue] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    Promise.all([fetchEmailDetail(id), fetchEmailProcessing(id), fetchReviewRecord(id)])
+      .then(([emailData, processedData, reviewData]) => {
+        setEmail(emailData);
+        setProcessed(processedData);
+        setRecord(reviewData);
+        const first = processedData.verification.field_comparisons[0];
+        setField(first?.field ?? '');
+        setValue(String(first?.bl_value ?? ''));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load review'));
+  }, [id]);
+
+  const selected = processed?.verification.field_comparisons.find((item) => item.field === field);
+
+  async function saveCorrection() {
+    if (!id || !field || !value.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await submitReviewCorrection(id, field, document, value.trim());
+      setProcessed(result);
+      setMessage('Correction saved and report updated.');
+      setRecord(await fetchReviewRecord(id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save correction');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retryProcessing() {
+    if (!id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setProcessed(await retryEmail(id));
+      setMessage('Processing retried successfully.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to retry processing');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (error && !processed) return <div className="p-5 text-sm text-danger">{error}</div>;
+  if (!email || !processed) return <div className="p-5 text-sm text-muted">Loading review...</div>;
 
   return (
     <div className="screen-scroll h-full bg-canvas pb-[86px]">
-      <ScreenHeader
-        title="Human review"
-        backTo="/review"
-        trailing={
-        <span
-          className={`rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wide ${
-          critical ? 'bg-danger-soft text-danger' : 'bg-warn-soft text-warn'}`
-          }>
-          
-            {item.reasonLabel}
-          </span>
-        } />
-      
-
+      <ScreenHeader title="Human review" backTo="/review" />
       <div className="px-5 pt-4">
-        <h2 className="text-[20px] font-bold tracking-tight text-navy-900">
-          {critical ? 'Low extraction confidence' : 'Missing evidence'}
-        </h2>
-        <p className="mt-1 text-[13px] leading-5 text-muted">
-          AI confidence below the automatic-processing threshold for {item.shipmentRef}.
-        </p>
+        <h2 className="text-[20px] font-bold tracking-tight text-navy-900">{email.subject}</h2>
+        <p className="mt-1 text-[13px] leading-5 text-muted">{processed.verification.review_details ?? 'Confirm the extracted evidence.'}</p>
+        {error && <p className="mt-3 rounded-xl bg-danger-soft p-3 text-sm text-danger">{error}</p>}
+        {message && <p className="mt-3 rounded-xl bg-good-soft p-3 text-sm text-good">{message}</p>}
 
-        <dl className="mt-4 overflow-hidden rounded-2xl border border-hair bg-white shadow-card">
-          {[
-          { term: 'Field', value: item.field },
-          { term: 'SI value', value: item.siValue },
-          { term: critical ? 'Invoice value' : 'BL value', value: item.blValue },
-          { term: 'Reason', value: item.aiReason }].
-          map((row, i) =>
-          <div
-            key={row.term}
-            className={`flex gap-4 px-4 py-3 ${i > 0 ? 'border-t border-hair' : ''}`}>
-            
-              <dt className="w-[86px] shrink-0 text-[12.5px] text-muted">{row.term}</dt>
-              <dd className="text-[12.5px] font-semibold leading-5 text-ink">{row.value}</dd>
-            </div>
-          )}
-        </dl>
-
-        <p className="mb-2 mt-5 text-[12.5px] font-semibold text-muted">Document excerpt</p>
-        <div className="relative overflow-hidden rounded-2xl border border-hair bg-white p-3 shadow-card">
-          <div className="rounded-lg bg-slate-50 p-3">
-            <div className="flex gap-4">
-              <div className="flex-1 space-y-1.5">
-                {[100, 76, 88, 64, 92, 70].map((w, i) =>
-                <div key={i} className="h-1.5 rounded-full bg-slate-200" style={{ width: `${w}%` }} />
-                )}
-              </div>
-              <div className="flex-1 space-y-1.5">
-                {[82, 95, 58, 74].map((w, i) =>
-                <div key={i} className="h-1.5 rounded-full bg-slate-200" style={{ width: `${w}%` }} />
-                )}
-                <div className="h-6 rounded bg-slate-300/70" />
-              </div>
-            </div>
-            <div className="mt-3 space-y-1.5">
-              {[96, 90, 45].map((w, i) =>
-              <div key={i} className="h-1.5 rounded-full bg-slate-200" style={{ width: `${w}%` }} />
-              )}
-            </div>
+        <div className="mt-4 rounded-2xl border border-hair bg-white p-4 shadow-card">
+          <label className="block text-[12px] font-semibold text-muted">Field</label>
+          <select value={field} onChange={(event) => setField(event.target.value)} className="mt-1 w-full rounded-lg border border-hair p-2 text-sm">
+            {processed.verification.field_comparisons.map((item) => <option key={item.field} value={item.field}>{item.field}</option>)}
+          </select>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
+            <p>SI: <strong className="text-ink">{selected?.si_value ?? 'Missing'}</strong></p>
+            <p>BL: <strong className="text-ink">{selected?.bl_value ?? 'Missing'}</strong></p>
           </div>
-          <button
-            type="button"
-            aria-label="Zoom document excerpt"
-            className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-lg bg-navy-900 text-white transition-transform duration-150 ease-out active:scale-95">
-            
-            <SearchIcon className="h-4 w-4" />
+          <label className="mt-4 block text-[12px] font-semibold text-muted">Correct document</label>
+          <select value={document} onChange={(event) => setDocument(event.target.value as 'si' | 'bl')} className="mt-1 w-full rounded-lg border border-hair p-2 text-sm">
+            <option value="si">Shipping instruction</option>
+            <option value="bl">Bill of lading</option>
+          </select>
+          <label className="mt-4 block text-[12px] font-semibold text-muted">Correct value</label>
+          <input value={value} onChange={(event) => setValue(event.target.value)} className="mt-1 w-full rounded-lg border border-hair p-2 text-sm" />
+          <button type="button" disabled={busy} onClick={saveCorrection} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-navy-900 py-3 text-sm font-bold text-white disabled:opacity-50">
+            <SaveIcon className="h-4 w-4" /> Save correction
           </button>
         </div>
-        <p className="mt-2 text-[11.5px] text-muted">{item.excerptNote}</p>
 
-        <button
-          type="button"
-          onClick={() => navigate('/review')}
-          className="mt-5 w-full rounded-2xl bg-navy-900 py-3.5 text-[14.5px] font-bold text-white transition-transform duration-150 ease-out active:scale-[0.99]">
-          
-          Confirm / correct value
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate('/review')}
-          className="mb-2 mt-3 w-full rounded-2xl border border-hair bg-white py-3.5 text-[14.5px] font-bold text-navy-900 transition-colors duration-150 hover:bg-slate-50">
-          
-          Close
-        </button>
+        <div className="mt-4 rounded-2xl border border-hair bg-white p-4 shadow-card">
+          <p className="text-[12px] font-semibold text-muted">Source evidence</p>
+          <ul className="mt-2 space-y-1 text-[12px] text-ink">{(record?.evidence ?? email.attachments).map((item) => <li key={item}>{item}</li>)}</ul>
+          <p className="mt-2 text-[11px] text-muted">Processing attempts: {record?.attempts ?? 0}</p>
+          {selected?.si_source && <p className="mt-2 break-words text-[11px] text-muted">{selected.si_source}</p>}
+          {selected?.bl_source && <p className="mt-1 break-words text-[11px] text-muted">{selected.bl_source}</p>}
+        </div>
+
+        {processed.verification.retryable && (
+          <button type="button" disabled={busy} onClick={retryProcessing} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-warn/30 bg-warn-soft py-3 text-sm font-bold text-warn disabled:opacity-50">
+            <RefreshCwIcon className="h-4 w-4" /> Retry processing
+          </button>
+        )}
+        <button type="button" onClick={() => navigate('/review')} className="mt-3 w-full py-3 text-sm font-semibold text-muted">Close</button>
       </div>
-    </div>);
-
+    </div>
+  );
 }

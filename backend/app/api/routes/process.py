@@ -7,11 +7,15 @@ from app.models.schemas import (
     ProcessedEmail,
     VerificationResult,
     FieldComparison,
+    ReviewRecord,
+    ReviewUpdate,
 )
 from app.core.config import settings
 from app.processing.classifier import classify_email
 from app.processing.verifier import verify_email_record
 from app.integrations.challenge_inbox import get_emails
+from app.processing.normalizer import normalize_document_fields
+from app.services.review_store import add_correction, get_review, increment_attempt, save_review
 
 router = APIRouter(
     prefix="/process",
@@ -23,12 +27,58 @@ if not DATA_DIR.is_absolute():
     DATA_DIR = Path(__file__).resolve().parents[4] / DATA_DIR
 
 
+def _apply_corrections(verif: dict, email_id: str) -> None:
+    record = get_review(email_id)
+    if not record:
+        return
+    for correction in record.get("corrections", []):
+        for comparison in verif.get("comparisons", []):
+            if comparison["field"] != correction["field"]:
+                continue
+            side = correction["document"]
+            comparison[f"{side}_raw"] = correction["value"]
+            comparison[f"{side}_normalized"] = normalize_document_fields(
+                {correction["field"]: correction["value"]}
+            )[correction["field"]]
+            comparison["matches"] = (
+                comparison["si_normalized"] is not None
+                and comparison["si_normalized"] == comparison["bl_normalized"]
+            )
+
+    if not verif.get("comparisons"):
+        return
+
+    mismatches = [c["field"] for c in verif["comparisons"] if not c["matches"]]
+    missing = any(
+        c["si_normalized"] is None or c["bl_normalized"] is None
+        for c in verif.get("comparisons", [])
+    )
+    if missing:
+        verif.update(status="NEEDS_REVIEW", review_reason="missing_value", has_defect=False, defect_fields=[])
+    elif mismatches:
+        verif.update(status="MISMATCH", review_reason=None, has_defect=True, defect_fields=sorted(mismatches))
+    else:
+        verif.update(status="OK", review_reason=None, has_defect=False, defect_fields=[])
+
+
 @router.post("", response_model=ProcessedEmail)
-def process_email_payload(email: EmailInput):
+def process_email_payload(email: EmailInput, count_attempt: bool = True):
     """Processes an arbitrary email payload sent in the request body."""
     email_dict = email.model_dump(by_alias=True)
     classification = classify_email(email_dict)
+    if count_attempt:
+        increment_attempt(email.email_id)
     verif = verify_email_record(email_dict, classification.category, str(DATA_DIR))
+    _apply_corrections(verif, email.email_id)
+
+    if verif.get("status") == "NEEDS_REVIEW":
+        save_review(
+            email.email_id,
+            status="needs_review",
+            reason=verif.get("review_reason"),
+            details=verif.get("review_details") or verif.get("review_reason"),
+            evidence=verif.get("evidence", []),
+        )
 
     comparisons = [
         FieldComparison(
@@ -38,6 +88,9 @@ def process_email_payload(email: EmailInput):
             si_normalized=c["si_normalized"],
             bl_normalized=c["bl_normalized"],
             matches=c["matches"],
+            reason=c.get("reason"),
+            si_source=c.get("si_source"),
+            bl_source=c.get("bl_source"),
         )
         for c in verif.get("comparisons", [])
     ]
@@ -53,7 +106,8 @@ def process_email_payload(email: EmailInput):
         field_comparisons=comparisons,
         defect_fields=verif["defect_fields"],
         review_reason=verif.get("review_reason"),
-        review_details=verif.get("review_reason"),
+        review_details=verif.get("review_details") or verif.get("review_reason"),
+        retryable=verif.get("retryable", False),
     )
 
     return ProcessedEmail(
@@ -93,4 +147,37 @@ def process_email_by_id(email_id: str):
         attachments=raw_email.get("attachments", []),
     )
     return process_email_payload(email_input)
+
+
+def _load_email_by_id(email_id: str) -> EmailInput:
+    email_path = DATA_DIR / "inbox" / f"{email_id}.json"
+    if not email_path.exists():
+        raise HTTPException(status_code=404, detail=f"Email {email_id} not found")
+    raw_email = json.loads(email_path.read_text(encoding="utf-8"))
+    return EmailInput(
+        email_id=raw_email["email_id"],
+        sender=raw_email.get("from", ""),
+        subject=raw_email.get("subject", ""),
+        body=raw_email.get("body", ""),
+        attachments=raw_email.get("attachments", []),
+    )
+
+
+@router.post("/{email_id}/retry", response_model=ProcessedEmail)
+def retry_email(email_id: str):
+    return process_email_payload(_load_email_by_id(email_id))
+
+
+@router.get("/reviews/{email_id}", response_model=ReviewRecord)
+def get_review_record(email_id: str):
+    record = get_review(email_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Review record not found")
+    return record
+
+
+@router.post("/reviews/{email_id}", response_model=ProcessedEmail)
+def submit_review_correction(email_id: str, update: ReviewUpdate):
+    add_correction(email_id, update.model_dump())
+    return process_email_payload(_load_email_by_id(email_id), count_attempt=False)
 

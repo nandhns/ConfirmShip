@@ -12,7 +12,11 @@ def test_verify_non_bl_comparison_passes_ok():
 
 
 def test_verify_missing_attachments_needs_review():
-    email = {"email_id": "email_506", "attachments": ["only_one_attachment.txt"]}
+    email = {
+        "email_id": "email_506",
+        "body": "Please compare the SI and draft BL (the draft BL is still missing).",
+        "attachments": ["only_one_attachment.txt"],
+    }
     res = verify_email_record(email, category="BL_COMPARISON")
     assert res["status"] == "NEEDS_REVIEW"
     assert res["review_reason"] == "missing_attachment"

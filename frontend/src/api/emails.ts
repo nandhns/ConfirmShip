@@ -24,6 +24,7 @@ export interface ProcessedEmail {
     defect_fields: string[];
     review_reason: string | null;
     review_details: string | null;
+    retryable: boolean;
   };
 }
 
@@ -35,6 +36,17 @@ export interface FieldComparison {
   bl_normalized: string | number | null;
   matches: boolean;
   reason?: string | null;
+  si_source?: string | null;
+  bl_source?: string | null;
+}
+
+export interface ReviewRecord {
+  email_id: string;
+  status: string;
+  reason: string | null;
+  details: string | null;
+  evidence: string[];
+  attempts: number;
 }
 
 function mapStatus(processed: ProcessedEmail): EmailStatus {
@@ -179,6 +191,7 @@ export async function fetchReviewItems(): Promise<ReviewItem[]> {
         classification.reason ??
         'The email requires manual review.',
       excerptNote: email.attachments.join(' | ') || 'No attachments',
+        retryable: verification.retryable,
     }];
   });
 }
@@ -206,5 +219,33 @@ export async function fetchEmailProcessing(
     throw new Error(`Failed to process email: ${response.status}`);
   }
 
+  return response.json();
+}
+
+export async function fetchReviewRecord(emailId: string): Promise<ReviewRecord> {
+  const response = await fetch(`/api/process/reviews/${emailId}`);
+  if (!response.ok) throw new Error(`Failed to fetch review: ${response.status}`);
+  return response.json();
+}
+
+export async function submitReviewCorrection(
+  emailId: string,
+  field: string,
+  document: 'si' | 'bl',
+  value: string,
+  comment?: string,
+): Promise<ProcessedEmail> {
+  const response = await fetch(`/api/process/reviews/${emailId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ field, document, value, comment }),
+  });
+  if (!response.ok) throw new Error(`Failed to save correction: ${response.status}`);
+  return response.json();
+}
+
+export async function retryEmail(emailId: string): Promise<ProcessedEmail> {
+  const response = await fetch(`/api/process/${emailId}/retry`, { method: 'POST' });
+  if (!response.ok) throw new Error(`Retry failed: ${response.status}`);
   return response.json();
 }

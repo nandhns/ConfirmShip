@@ -1,0 +1,60 @@
+"""Small durable store for human review decisions and processing attempts."""
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from app.core.config import settings
+
+
+def _store_path() -> Path:
+    path = Path(settings.REVIEW_STORE_PATH)
+    if not path.is_absolute():
+        path = Path(__file__).resolve().parents[2] / path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _read() -> dict[str, dict[str, Any]]:
+    path = _store_path()
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _write(records: dict[str, dict[str, Any]]) -> None:
+    path = _store_path()
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(records, indent=2), encoding="utf-8")
+    temporary.replace(path)
+
+
+def get_review(email_id: str) -> dict[str, Any] | None:
+    return _read().get(email_id)
+
+
+def save_review(email_id: str, **values: Any) -> dict[str, Any]:
+    records = _read()
+    current = records.get(email_id, {"email_id": email_id, "corrections": [], "attempts": 0})
+    current.update(values, updated_at=datetime.now(timezone.utc).isoformat())
+    records[email_id] = current
+    _write(records)
+    return current
+
+
+def add_correction(email_id: str, correction: dict[str, Any]) -> dict[str, Any]:
+    current = get_review(email_id) or {"email_id": email_id, "corrections": [], "attempts": 0}
+    corrections = [item for item in current.get("corrections", [])
+                   if not (item["field"] == correction["field"] and item["document"] == correction["document"])]
+    corrections.append(correction)
+    return save_review(email_id, corrections=corrections, status="corrected")
+
+
+def increment_attempt(email_id: str) -> int:
+    current = get_review(email_id) or {"email_id": email_id, "corrections": [], "attempts": 0}
+    attempts = int(current.get("attempts", 0)) + 1
+    save_review(email_id, attempts=attempts)
+    return attempts

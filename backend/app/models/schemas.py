@@ -32,6 +32,8 @@ ReviewReason = Literal[
     "wrong_doc_type",
     "missing_attachment",
     "unreadable",
+    "ocr_failed",
+    "processing_failed",
     "missing_value",
     "uncertain_extraction",
 ]
@@ -88,6 +90,7 @@ class ExtractedField(BaseModel):
     value: str | int | float | None = None
     normalized_value: str | int | float | None = None
     confidence: float = Field(default=0.0, ge=0, le=1)
+    source_excerpt: str | None = None
 
 
 class UncertainField(BaseModel):
@@ -120,6 +123,8 @@ class FieldComparison(BaseModel):
     bl_normalized: str | int | float | None
     matches: bool
     reason: str | None = None
+    si_source: str | None = None
+    bl_source: str | None = None
 
 
 class VerificationResult(BaseModel):
@@ -130,6 +135,25 @@ class VerificationResult(BaseModel):
     defect_fields: list[CanonicalField] = Field(default_factory=list)
     review_reason: ReviewReason | None = None
     review_details: str | None = None
+    retryable: bool = False
+
+
+class ReviewUpdate(BaseModel):
+    field: CanonicalField
+    document: Literal["si", "bl"]
+    value: str = Field(min_length=1)
+    comment: str | None = None
+
+
+class ReviewRecord(BaseModel):
+    email_id: str
+    status: str
+    reason: str | None = None
+    details: str | None = None
+    evidence: list[str] = Field(default_factory=list)
+    corrections: list[ReviewUpdate] = Field(default_factory=list)
+    attempts: int = 0
+    updated_at: str
 
 
 # ---------------------------------------------------------------------

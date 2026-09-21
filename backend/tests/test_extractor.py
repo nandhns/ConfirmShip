@@ -53,3 +53,24 @@ Gross Weight: 21,577 KG
     doc, err = extract_document_from_file("email_516", f_path, use_llm_fallback=False)
     assert doc is None
     assert err == "missing_value"
+
+
+def test_extracts_pipe_delimited_table_rows():
+    sample = """BILL OF LADING
+SHIPPER | APRIL FAR EAST
+CONSIGNEE | MOORIM SP CO., LTD
+NOTIFY PARTY | UAB NOVAKOPA
+PORT OF LOADING | PORT KLANG
+PORT OF DISCHARGE | CALLAO
+CONTAINER COUNT | 2 x 40'HC
+GROSS WEIGHT (KG) | 21,577 KG
+"""
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
+        f.write(sample)
+        f_path = f.name
+
+    doc, err = extract_document_from_file("email_table", f_path, use_llm_fallback=False)
+    assert err is None
+    assert doc is not None
+    assert doc.fields["consignee"].value == "MOORIM SP CO., LTD"
+    assert doc.fields["gross_weight_kg"].value == "21,577 KG"

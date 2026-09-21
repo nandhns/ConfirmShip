@@ -1,4 +1,5 @@
 """Extractor for canonical fields from parsed documents."""
+import re
 from pathlib import Path
 from app.models.schemas import (
     CANONICAL_FIELDS,
@@ -47,25 +48,38 @@ def _is_blank(val: str | None) -> bool:
     return s in BLANK_TOKENS or s == ""
 
 
-def _extract_raw_value(text: str, labels: list[str]) -> tuple[str | None, bool]:
-    for line in text.splitlines():
-        cleaned = line.strip()
-        lower = cleaned.lower()
-        for label in labels:
-            prefix_colon = f"{label}:"
-            prefix_dash = f"{label} -"
-            prefix_sep = f"{label} :"
-            val = None
-            if lower.startswith(prefix_colon):
-                val = cleaned[len(prefix_colon):].strip()
-            elif lower.startswith(prefix_dash):
-                val = cleaned[len(prefix_dash):].strip()
-            elif lower.startswith(prefix_sep):
-                val = cleaned[len(prefix_sep):].strip()
+def _label_match(line: str, label: str) -> re.Match[str] | None:
+    escaped = re.escape(label)
+    return re.match(
+        rf"^{escaped}(?:[^:|\-\n]*?)\s*(?::|[|]|-|\t|\s{{2,}})\s*(.*?)\s*$",
+        line.strip(),
+        flags=re.IGNORECASE,
+    )
 
-            if val is not None:
-                return (None, True) if _is_blank(val) else (val, False)
-    return None, False
+
+def _extract_raw_value(text: str, labels: list[str]) -> tuple[str | None, bool, str | None]:
+    lines = text.splitlines()
+    all_labels = [label for field_labels in FIELD_LABELS.values() for label in field_labels]
+    for index, line in enumerate(lines):
+        cleaned = line.strip()
+        for label in sorted(labels, key=len, reverse=True):
+            match = _label_match(cleaned, label)
+            if not match:
+                continue
+
+            value_lines = [match.group(1).strip()]
+            for continuation in lines[index + 1:]:
+                continuation_cleaned = continuation.strip()
+                if not continuation_cleaned:
+                    continue
+                if ":" in continuation_cleaned or any(
+                    _label_match(continuation_cleaned, next_label) for next_label in all_labels
+                ):
+                    break
+                value_lines.append(continuation_cleaned)
+            val = " ".join(value_lines).strip()
+            return (None, True, cleaned) if _is_blank(val) else (val, False, cleaned)
+    return None, False, None
 
 
 def extract_document_from_file(
@@ -87,7 +101,7 @@ def extract_document_from_file(
 
     # 1. Rule-based extraction
     for field_name in CANONICAL_FIELDS:
-        raw_val, is_blank_val = _extract_raw_value(text, FIELD_LABELS[field_name])
+        raw_val, is_blank_val, source_excerpt = _extract_raw_value(text, FIELD_LABELS[field_name])
         if is_blank_val:
             has_blank_flag = True
 
@@ -98,6 +112,7 @@ def extract_document_from_file(
             value=raw_val,
             normalized_value=raw_val,  # Normalization will be performed downstream by Role 2
             confidence=0.95 if raw_val is not None else 0.0,
+            source_excerpt=source_excerpt,
         )
 
     # 2. Invoke structured LLM fallback if fields are missing and no blank placeholders
@@ -111,7 +126,8 @@ def extract_document_from_file(
                     fields[f] = ExtractedField(
                         value=str(val),
                         normalized_value=str(val),
-                        confidence=0.85
+                        confidence=0.85,
+                        source_excerpt="LLM fallback from document text",
                     )
                     missing_fields.remove(f)
         except Exception:

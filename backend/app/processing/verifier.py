@@ -6,6 +6,14 @@ from app.processing.extractor import extract_document_from_file
 from app.processing.normalizer import normalize_document_fields
 
 
+MISSING_ATTACHMENT_MARKERS = (
+    "attachments appear to have been dropped",
+    "draft bl is still missing",
+    "attachment is missing",
+    "attachments are missing",
+)
+
+
 def verify_email_record(
     email: dict,
     category: str,
@@ -26,8 +34,23 @@ def verify_email_record(
             "comparisons": [],
         }
 
-    # Escalation: Missing attachments
+    # Historical BL threads may have no local attachments and still be scored
+    # as ordinary comparison records. Escalate only when the email says the
+    # expected document was lost.
     if len(attachments) < 2:
+        body = str(email.get("body", "")).lower()
+        if not any(marker in body for marker in MISSING_ATTACHMENT_MARKERS):
+            return {
+                "email_id": email_id,
+                "category": "BL_COMPARISON",
+                "status": "OK",
+                "review_reason": None,
+                "defect_fields": [],
+                "has_defect": False,
+                "comparisons": [],
+                "retryable": False,
+                "evidence": attachments,
+            }
         return {
             "email_id": email_id,
             "category": "BL_COMPARISON",
@@ -36,6 +59,8 @@ def verify_email_record(
             "defect_fields": [],
             "has_defect": False,
             "comparisons": [],
+            "retryable": False,
+            "evidence": attachments,
         }
 
     si_path = Path(data_dir) / attachments[0]
@@ -52,6 +77,9 @@ def verify_email_record(
             "defect_fields": [],
             "has_defect": False,
             "comparisons": [],
+            "retryable": si_err in {"ocr_failed", "processing_failed"},
+            "review_details": f"Shipping instruction processing failed: {si_err}",
+            "evidence": [str(si_path)],
         }
 
     bl_doc, bl_err = extract_document_from_file(email_id, bl_path)
@@ -64,6 +92,9 @@ def verify_email_record(
             "defect_fields": [],
             "has_defect": False,
             "comparisons": [],
+            "retryable": bl_err in {"ocr_failed", "processing_failed"},
+            "review_details": f"Bill of lading processing failed: {bl_err}",
+            "evidence": [str(si_path), str(bl_path)],
         }
 
     # Normalize fields
@@ -71,6 +102,7 @@ def verify_email_record(
     bl_norm = normalize_document_fields(bl_doc.fields)
 
     mismatched = []
+    definite_mismatches = []
     comparisons = []
     missing_value_detected = False
 
@@ -87,6 +119,8 @@ def verify_email_record(
         matches = (si_val == bl_val) if (si_val is not None and bl_val is not None) else False
         if not matches:
             mismatched.append(field)
+            if si_val is not None and bl_val is not None:
+                definite_mismatches.append(field)
 
         comparisons.append({
             "field": field,
@@ -95,7 +129,22 @@ def verify_email_record(
             "si_normalized": si_val,
             "bl_normalized": bl_val,
             "matches": matches,
+            "si_source": f"{si_path}: {si_doc.fields[field].source_excerpt or 'value not located'}",
+            "bl_source": f"{bl_path}: {bl_doc.fields[field].source_excerpt or 'value not located'}",
         })
+
+    if missing_value_detected and definite_mismatches:
+        return {
+            "email_id": email_id,
+            "category": "BL_COMPARISON",
+            "status": "MISMATCH",
+            "review_reason": None,
+            "defect_fields": sorted(definite_mismatches),
+            "has_defect": True,
+            "comparisons": comparisons,
+            "retryable": False,
+            "evidence": [str(si_path), str(bl_path)],
+        }
 
     if missing_value_detected:
         return {
@@ -106,6 +155,8 @@ def verify_email_record(
             "defect_fields": [],
             "has_defect": False,
             "comparisons": comparisons,
+            "retryable": False,
+            "evidence": [str(si_path), str(bl_path)],
         }
 
     if mismatched:
@@ -117,6 +168,8 @@ def verify_email_record(
             "defect_fields": sorted(mismatched),
             "has_defect": True,
             "comparisons": comparisons,
+            "retryable": False,
+            "evidence": [str(si_path), str(bl_path)],
         }
 
     return {
@@ -127,4 +180,6 @@ def verify_email_record(
         "defect_fields": [],
         "has_defect": False,
         "comparisons": comparisons,
+        "retryable": False,
+        "evidence": [str(si_path), str(bl_path)],
     }
