@@ -8,6 +8,7 @@ from app.models.schemas import (
     VerificationResult,
     FieldComparison,
 )
+from app.core.config import settings
 from app.processing.classifier import classify_email
 from app.processing.verifier import verify_email_record
 
@@ -16,7 +17,7 @@ router = APIRouter(
     tags=["process"],
 )
 
-DATA_DIR = Path("challenge/data_v2")
+DATA_DIR = Path(settings.DATA_DIR)
 
 
 @router.post("", response_model=ProcessedEmail)
