@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ---------------------------------------------------------------------
@@ -62,6 +62,8 @@ CANONICAL_FIELDS: list[CanonicalField] = [
 # ---------------------------------------------------------------------
 
 class EmailInput(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     email_id: str
     sender: str = Field(alias="from")
     subject: str
