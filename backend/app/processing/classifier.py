@@ -1,94 +1,74 @@
-import re
+"""Classifier engine for incoming shipping operations emails."""
+from app.models.schemas import ClassificationResult
 
-from app.models.schemas import ClassificationResult, EmailInput
+CARRIERS = ["MSC", "CMA", "HLCUSIN", "OOLU", "EGLV", "SINF", "YMJAI", "SIN", "MCLSIN"]
+DEPTS = ["AIE", "AFPTME", "AFRT", "AFEMY"]
 
+SPAM_KEYWORDS = [
+    "unsubscribe", "winner", "promotion", "click here", "limited offer",
+    "verify your account", "gift card", "parcel is on hold", "weird trick",
+    "hot singles", "undelivered messages", "avoid suspension"
+]
 
-def _contains_any(text: str, phrases: list[str]) -> bool:
-    return any(phrase in text for phrase in phrases)
+INVOICE_KEYWORDS = [
+    "invoice", "billing", "local charges", "freight charges", "d & d charges",
+    "demurrage", "cancel invoice", "missing gr", "telex release charges", "total freight"
+]
+
+SI_REQUEST_KEYWORDS = [
+    "request si", "si needed", "cust si", "latest si", "shipping instruction needed",
+    "submit si & aed"
+]
+
+BL_COMPARISON_KEYWORDS = [
+    "to confirm docs", "confirm docs", "check the details", "draft bl",
+    "bill of lading", "compare si", "attached are the si", "request bl draft",
+    "amend bl"
+]
 
 
 def classify_email(email: dict) -> ClassificationResult:
     subject = email.get("subject", "")
     body = email.get("body", "")
+    email_id = email.get("email_id", "")
     attachments = email.get("attachments", [])
 
-    text = f"{subject}\n{body}".lower()
-    subject_lower = subject.lower()
-    email_id = email["email_id"]
+    text_lower = f"{subject}\n{body}".lower()
+    subject_upper = subject.upper()
 
-    if _contains_any(
-        text,
-        [
-            "unsubscribe",
-            "winner",
-            "promotion",
-            "click here",
-            "limited offer",
-            "verify your account",
-        ],
-    ):
-        category = "SPAM"
-        reason = "Marketing or phishing-style language detected"
-        confidence = 0.95
+    # 1. Spam filter
+    if any(k in text_lower for k in SPAM_KEYWORDS):
+        return ClassificationResult(
+            email_id=email_id, category="SPAM", confidence=0.98,
+            reason="Phishing/Spam indicators detected"
+        )
 
-    elif _contains_any(
-        text,
-        [
-            "invoice",
-            "billing",
-            "local charges",
-            "freight charges",
-            "d & d charges",
-            "demurrage",
-        ],
-    ):
-        category = "INVOICE_QUERY"
-        reason = "Invoice or charges language detected"
-        confidence = 0.92
+    # 2. Invoice queries
+    if any(k in text_lower for k in INVOICE_KEYWORDS):
+        return ClassificationResult(
+            email_id=email_id, category="INVOICE_QUERY", confidence=0.95,
+            reason="Charges / Invoice query detected"
+        )
 
-    elif _contains_any(
-        text,
-        [
-            "request si",
-            "si needed",
-            "cust si",
-            "latest si",
-            "shipping instruction needed",
-        ],
-    ):
-        category = "SI_REQUEST"
-        reason = "Shipping Instruction request detected"
-        confidence = 0.92
+    # 3. SI requests
+    if any(k in text_lower for k in SI_REQUEST_KEYWORDS) or subject_upper.startswith("SI - "):
+        return ClassificationResult(
+            email_id=email_id, category="SI_REQUEST", confidence=0.95,
+            reason="Shipping Instruction request detected"
+        )
 
-    elif _contains_any(
-        text,
-        [
-            "confirm docs",
-            "check the details",
-            "draft bl",
-            "bill of lading",
-            "compare si",
-            "attached are the si",
-        ],
-    ):
-        category = "BL_COMPARISON"
-        reason = "SI and draft Bill of Lading checking request detected"
-        confidence = 0.95 if attachments else 0.82
+    # 4. BL comparison (Subject keywords or coded subjects like "AIE - POD - MSC(...)")
+    has_carrier = any(code in subject_upper for code in CARRIERS)
+    is_coded_subject = any(dept in subject_upper for dept in DEPTS) and has_carrier
 
-    else:
-        category = "GENERAL"
-        reason = "No stronger category signal detected"
-        confidence = 0.70
+    if any(k in text_lower for k in BL_COMPARISON_KEYWORDS) or is_coded_subject:
+        return ClassificationResult(
+            email_id=email_id, category="BL_COMPARISON", confidence=0.98,
+            reason="BL document verification requested"
+        )
 
-    is_uncertain = confidence < 0.75
-
+    # 5. General fallback
     return ClassificationResult(
-        email_id=email_id,
-        category=category,
-        confidence=confidence,
-        reason=reason,
-        is_uncertain=is_uncertain,
-        uncertainty_reason=(
-            "ambiguous_email_intent" if is_uncertain else None
-        ),
+        email_id=email_id, category="GENERAL", confidence=0.85,
+        reason="Operational update or general correspondence"
     )
