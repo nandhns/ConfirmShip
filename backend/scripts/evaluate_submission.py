@@ -51,7 +51,7 @@ def main():
         str(OUTPUT_FILE),
         "--ground-truth",
         str(DATA_DIR / "ground_truth.json")
-    ])
+    ], check=True)
 
 
 if __name__ == "__main__":

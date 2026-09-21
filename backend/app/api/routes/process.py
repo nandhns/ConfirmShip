@@ -12,7 +12,7 @@ from app.processing.classifier import classify_email
 from app.processing.verifier import verify_email_record
 
 router = APIRouter(
-    prefix="/api/process",
+    prefix="/process",
     tags=["process"],
 )
 

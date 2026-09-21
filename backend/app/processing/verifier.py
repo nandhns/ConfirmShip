@@ -1,7 +1,7 @@
 """Verification and discrepancy detection between SI and draft BL."""
 from pathlib import Path
 from typing import Any
-from app.models.schemas import CANONICAL_FIELDS, FieldComparison, VerificationResult
+from app.models.schemas import CANONICAL_FIELDS
 from app.processing.extractor import extract_document_from_file
 from app.processing.normalizer import normalize_document_fields
 

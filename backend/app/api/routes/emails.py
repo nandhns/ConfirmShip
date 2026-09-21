@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 
 from app.integrations.challenge_inbox import get_emails
 from app.models.schemas import EmailInput
@@ -23,4 +23,7 @@ def get_email(email_id: str):
         if email["email_id"] == normalised_id:
             return email
 
-    return {"error": f"Email not found with id: {email_id}"}
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Email not found with id: {email_id}",
+    )
