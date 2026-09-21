@@ -46,6 +46,16 @@ CanonicalField = Literal[
     "gross_weight_kg",
 ]
 
+# The runtime iterable list of canonical field names
+CANONICAL_FIELDS: list[CanonicalField] = [
+    "shipper",
+    "consignee",
+    "notify_party",
+    "port_of_loading",
+    "port_of_discharge",
+    "container_count",
+    "gross_weight_kg",
+]
 
 # ---------------------------------------------------------------------
 # Classification
