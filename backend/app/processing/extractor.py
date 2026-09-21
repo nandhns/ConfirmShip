@@ -1,141 +1,116 @@
-import re
-
-from app.models.schemas import (
-    CANONICAL_FIELDS,
-    ExtractedDocument,
-    ExtractedField,
-)
+"""Extractor for canonical fields from parsed documents."""
+from pathlib import Path
+from app.models.schemas import CANONICAL_FIELDS, ExtractedDocument, ExtractedField
 from app.processing.normalizer import (
+    is_blank_value,
     normalize_container_count,
     normalize_port,
     normalize_text,
     normalize_weight_kg,
 )
-
+from app.processing.readers import read_attachment
 
 FIELD_LABELS = {
-    "shipper": [
-        "shipper",
-        "shipper/exporter",
-        "exporter",
-    ],
-    "consignee": [
-        "consignee",
-        "consigned to",
-    ],
-    "notify_party": [
-        "notify party",
-        "notify",
-    ],
-    "port_of_loading": [
-        "port of loading",
-        "load port",
-        "pol",
-    ],
-    "port_of_discharge": [
-        "port of discharge",
-        "discharge port",
-        "pod",
-    ],
-    "container_count": [
-        "container count",
-        "no. of containers or packages",
-        "number of containers",
-    ],
-    "gross_weight_kg": [
-        "gross weight",
-        "gross wt",
-    ],
+    "shipper": ["shipper", "shipper/exporter", "shipper (principal or seller)", "exporter"],
+    "consignee": ["consignee", "consignee (non-negotiable)", "to the order of", "consigned to"],
+    "notify_party": ["notify party", "notify", "notify party/intermediate consignee"],
+    "port_of_loading": ["port of loading", "port of loading (pol)", "load port", "pol"],
+    "port_of_discharge": ["port of discharge", "port of discharge (pod)", "discharge port", "pod"],
+    "container_count": ["no. of containers", "total containers", "no. of containers or packages", "container count"],
+    "gross_weight_kg": ["gross weight (kg)", "gross wt (kgs)", "gross weight毛重(kgs)", "gross weight", "gross wt"],
 }
+
+WRONG_DOC_STRINGS = [
+    "COMMERCIAL INVOICE",
+    "PACKING LIST",
+    "CERTIFICATE OF ORIGIN",
+    "THIS IS A COMMERCIAL INVOICE",
+    "PACKING LIST ONLY",
+    "NOT AN SI OR BL"
+]
 
 
 def detect_document_type(text: str) -> str:
-    upper_text = text.upper()
-
-    if "SHIPPING INSTRUCTION" in upper_text:
+    upper = text.upper()
+    if any(m in upper for m in WRONG_DOC_STRINGS):
+        return "WRONG_DOCUMENT"
+    if "SHIPPING INSTRUCTION" in upper:
         return "SI"
-
-    if "BILL OF LADING" in upper_text:
+    if "BILL OF LADING" in upper:
         return "BL"
-
-    if "COMMERCIAL INVOICE" in upper_text:
-        return "WRONG_DOCUMENT"
-
-    if "PACKING LIST" in upper_text:
-        return "WRONG_DOCUMENT"
-
-    if "CERTIFICATE OF ORIGIN" in upper_text:
-        return "WRONG_DOCUMENT"
-
     return "UNKNOWN"
 
 
-def _extract_raw_value(text: str, labels: list[str]) -> str | None:
+def _extract_raw_value(text: str, labels: list[str]) -> tuple[str | None, bool]:
     for line in text.splitlines():
-        cleaned_line = line.strip()
-        lower_line = cleaned_line.lower()
-
+        cleaned = line.strip()
+        lower = cleaned.lower()
         for label in labels:
-            if lower_line.startswith(f"{label}:"):
-                return cleaned_line.split(":", 1)[1].strip()
+            prefix_colon = f"{label}:"
+            prefix_dash = f"{label} -"
+            prefix_sep = f"{label} :"
+            val = None
+            if lower.startswith(prefix_colon):
+                val = cleaned[len(prefix_colon):].strip()
+            elif lower.startswith(prefix_dash):
+                val = cleaned[len(prefix_dash):].strip()
+            elif lower.startswith(prefix_sep):
+                val = cleaned[len(prefix_sep):].strip()
 
-            if lower_line.startswith(f"{label} -"):
-                return cleaned_line.split("-", 1)[1].strip()
-
-    return None
-
-
-def _normalize_field(field_name: str, value: str | None):
-    if field_name in {"port_of_loading", "port_of_discharge"}:
-        return normalize_port(value)
-
-    if field_name == "container_count":
-        return normalize_container_count(value)
-
-    if field_name == "gross_weight_kg":
-        return normalize_weight_kg(value)
-
-    return normalize_text(value)
+            if val is not None:
+                return (None, True) if is_blank_value(val) else (val, False)
+    return None, False
 
 
-def extract_document(
+def extract_document_from_file(
     email_id: str,
-    source_path: str,
-    text: str,
-) -> ExtractedDocument:
-    document_type = detect_document_type(text)
+    file_path: str | Path,
+) -> tuple[ExtractedDocument | None, str | None]:
+    text, read_err = read_attachment(file_path)
+    if read_err:
+        return None, read_err
+
+    doc_type = detect_document_type(text)
+    if doc_type == "WRONG_DOCUMENT":
+        return None, "wrong_doc_type"
+
     fields = {}
     missing_fields = []
+    has_blank_flag = False
 
     for field_name in CANONICAL_FIELDS:
-        raw_value = _extract_raw_value(
-            text,
-            FIELD_LABELS[field_name],
-        )
+        raw_val, is_blank = _extract_raw_value(text, FIELD_LABELS[field_name])
+        if is_blank:
+            has_blank_flag = True
 
-        normalized_value = _normalize_field(field_name, raw_value)
-
-        if normalized_value is None:
-            missing_fields.append(field_name)
-            confidence = 0.0
+        if field_name in {"port_of_loading", "port_of_discharge"}:
+            norm_val = normalize_port(raw_val)
+        elif field_name == "container_count":
+            norm_val = normalize_container_count(raw_val)
+        elif field_name == "gross_weight_kg":
+            norm_val = normalize_weight_kg(raw_val)
         else:
-            confidence = 0.95
+            norm_val = normalize_text(raw_val)
+
+        if norm_val is None:
+            missing_fields.append(field_name)
 
         fields[field_name] = ExtractedField(
-            value=raw_value,
-            normalized_value=normalized_value,
-            confidence=confidence,
+            value=raw_val,
+            normalized_value=norm_val,
+            confidence=0.95 if norm_val is not None else 0.0,
         )
 
-    readable = bool(text.strip())
+    if has_blank_flag:
+        return None, "missing_value"
 
-    return ExtractedDocument(
+    doc = ExtractedDocument(
         email_id=email_id,
-        document_type=document_type,
-        source_path=source_path,
-        readable=readable,
+        document_type=doc_type,
+        source_path=str(file_path),
+        readable=True,
         fields=fields,
         missing_fields=missing_fields,
-        extraction_method="text",
-        error=None if readable else "Attachment contains no readable text",
+        extraction_method="text_rules",
     )
+    return doc, None
