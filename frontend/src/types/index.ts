@@ -47,4 +47,5 @@ export interface ReviewItem {
   confidence?: number;
   aiReason: string;
   excerptNote: string;
+  retryable?: boolean;
 }

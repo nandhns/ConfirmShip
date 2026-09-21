@@ -9,6 +9,9 @@ from app.core.config import settings
 
 
 class BaseOCREngine(ABC):
+    def __init__(self):
+        self.last_error: str | None = None
+
     @abstractmethod
     def extract_text_from_image(self, image: Image.Image) -> str:
         """Extract text from a PIL image."""
@@ -17,6 +20,7 @@ class BaseOCREngine(ABC):
 
 class GeminiOCREngine(BaseOCREngine):
     def __init__(self, api_key: str | None = None, model_name: str | None = None):
+        super().__init__()
         import google.generativeai as genai
         key = api_key or settings.GEMINI_API_KEY
         if key:
@@ -32,11 +36,13 @@ class GeminiOCREngine(BaseOCREngine):
             response = self.model.generate_content([prompt, image])
             return response.text if response.text else ""
         except Exception as e:
+            self.last_error = str(e)
             return ""
 
 
 class OpenAIOcrEngine(BaseOCREngine):
     def __init__(self, api_key: str | None = None, model_name: str | None = None):
+        super().__init__()
         from openai import OpenAI
         self.client = OpenAI(api_key=api_key or settings.OPENAI_API_KEY)
         self.model = model_name or settings.OPENAI_MODEL
@@ -60,7 +66,8 @@ class OpenAIOcrEngine(BaseOCREngine):
                 }]
             )
             return response.choices[0].message.content or ""
-        except Exception:
+        except Exception as e:
+            self.last_error = str(e)
             return ""
 
 
@@ -70,7 +77,8 @@ class TesseractOCREngine(BaseOCREngine):
         try:
             import pytesseract
             return pytesseract.image_to_string(image)
-        except Exception:
+        except Exception as e:
+            self.last_error = str(e)
             return ""
 
 

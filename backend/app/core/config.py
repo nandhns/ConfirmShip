@@ -18,4 +18,5 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     
     DATA_DIR: str = os.getenv("DATA_DIR", "challenge/data_v2")
+    REVIEW_STORE_PATH: str = os.getenv("REVIEW_STORE_PATH", ".data/reviews.json")
 settings = Settings()
