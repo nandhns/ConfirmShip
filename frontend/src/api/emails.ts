@@ -47,6 +47,18 @@ export interface ReviewRecord {
   details: string | null;
   evidence: string[];
   attempts: number;
+  audit_log: ReviewAuditEntry[];
+}
+
+export interface ReviewAuditEntry {
+  action: 'correction';
+  field: string;
+  document: 'si' | 'bl';
+  old_value: string | null;
+  new_value: string;
+  reviewer: string;
+  comment: string | null;
+  timestamp: string;
 }
 
 function mapStatus(processed: ProcessedEmail): EmailStatus {
@@ -159,13 +171,15 @@ export async function fetchReviewItems(): Promise<ReviewItem[]> {
 
   return processedEmails.flatMap(({ email, processed }) => {
     const { classification, verification } = processed;
-    if (verification.status !== 'needs_review') {
+    if (verification.status !== 'needs_review' && verification.status !== 'mismatch') {
       return [];
     }
 
     const comparison = verification.field_comparisons[0];
     const lowConfidence = verification.review_reason === 'uncertain_extraction';
-    const reason = lowConfidence ? 'low-confidence' : 'review-required';
+    const reason = verification.status === 'mismatch'
+      ? 'mismatch'
+      : lowConfidence ? 'low-confidence' : 'review-required';
     const field = comparison?.field ?? verification.review_reason ?? 'Document review';
 
     return [{
@@ -227,12 +241,13 @@ export async function submitReviewCorrection(
   field: string,
   document: 'si' | 'bl',
   value: string,
+  reviewer: string,
   comment?: string,
 ): Promise<ProcessedEmail> {
   const response = await fetch(`/api/process/reviews/${emailId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ field, document, value, comment }),
+    body: JSON.stringify({ field, document, value, reviewer, comment }),
   });
   if (!response.ok) throw new Error(`Failed to save correction: ${response.status}`);
   return response.json();

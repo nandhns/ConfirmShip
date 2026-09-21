@@ -143,6 +143,18 @@ class ReviewUpdate(BaseModel):
     document: Literal["si", "bl"]
     value: str = Field(min_length=1)
     comment: str | None = None
+    reviewer: str = Field(default="human-reviewer", min_length=1)
+
+
+class ReviewAuditEntry(BaseModel):
+    action: Literal["correction"]
+    field: CanonicalField
+    document: Literal["si", "bl"]
+    old_value: str | None = None
+    new_value: str
+    reviewer: str
+    comment: str | None = None
+    timestamp: str
 
 
 class ReviewRecord(BaseModel):
@@ -152,6 +164,7 @@ class ReviewRecord(BaseModel):
     details: str | None = None
     evidence: list[str] = Field(default_factory=list)
     corrections: list[ReviewUpdate] = Field(default_factory=list)
+    audit_log: list[ReviewAuditEntry] = Field(default_factory=list)
     attempts: int = 0
     updated_at: str
 
