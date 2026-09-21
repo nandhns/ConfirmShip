@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRightIcon, CircleAlertIcon, ClockIcon } from 'lucide-react';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { reviews } from '../data/reviews';
+import { fetchReviewItems } from '../api/emails';
+import { ReviewItem } from '../types';
 
 const filters = [
 { id: 'all', label: 'All' },
@@ -13,7 +14,22 @@ const filters = [
 export function ReviewQueue() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
-  const visible = reviews.filter((r) => filter === 'all' || r.reason === filter);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchReviewItems()
+      .then(setReviews)
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Unable to load reviews');
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const visible = reviews.filter((review) =>
+    filter === 'all' || review.reason === filter
+  );
 
   const count = (id: string) =>
   id === 'all' ? reviews.length : reviews.filter((r) => r.reason === id).length;
@@ -44,6 +60,13 @@ export function ReviewQueue() {
           })}
         </div>
 
+        {loading && (
+          <p className="mt-5 text-center text-sm text-muted">Loading reviews...</p>
+        )}
+        {error && (
+          <p className="mt-5 text-center text-sm text-danger">{error}</p>
+        )}
+        {!loading && !error && (
         <ul className="mt-3 space-y-3">
           {visible.map((item) => {
             const critical = item.reason === 'low-confidence';
@@ -51,7 +74,7 @@ export function ReviewQueue() {
               <li key={item.id}>
                 <button
                   type="button"
-                  onClick={() => navigate(`/review/${item.id}`)}
+                  onClick={() => navigate(`/email/${item.id}`)}
                   className={`flex w-full gap-3 rounded-2xl border px-4 py-3.5 text-left shadow-card transition-colors duration-150 ${
                   critical ?
                   'border-danger/20 bg-danger-soft/60 hover:bg-danger-soft' :
@@ -102,6 +125,7 @@ export function ReviewQueue() {
 
           })}
         </ul>
+        )}
 
         <p className="mt-5 text-center text-[11.5px] text-muted">
           Items clear automatically once confidence exceeds 85%.

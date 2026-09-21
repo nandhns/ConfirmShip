@@ -11,6 +11,7 @@ from app.models.schemas import (
 from app.core.config import settings
 from app.processing.classifier import classify_email
 from app.processing.verifier import verify_email_record
+from app.integrations.challenge_inbox import get_emails
 
 router = APIRouter(
     prefix="/process",
@@ -18,6 +19,8 @@ router = APIRouter(
 )
 
 DATA_DIR = Path(settings.DATA_DIR)
+if not DATA_DIR.is_absolute():
+    DATA_DIR = Path(__file__).resolve().parents[4] / DATA_DIR
 
 
 @router.post("", response_model=ProcessedEmail)
@@ -59,6 +62,15 @@ def process_email_payload(email: EmailInput):
         verification=verification_result,
     )
 
+@router.get("/processed", response_model=list[ProcessedEmail])
+def list_processed_emails():
+    processed = []
+
+    for email in get_emails():
+        email_input = EmailInput.model_validate(email)
+        processed.append(process_email_payload(email_input))
+
+    return processed
 
 @router.post("/{email_id}", response_model=ProcessedEmail)
 def process_email_by_id(email_id: str):
@@ -81,3 +93,4 @@ def process_email_by_id(email_id: str):
         attachments=raw_email.get("attachments", []),
     )
     return process_email_payload(email_input)
+

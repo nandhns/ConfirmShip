@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpRightIcon, SparklesIcon } from 'lucide-react';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { AccuracyChart } from '../components/AccuracyChart';
-import { accuracyDelta, accuracySeries, issueBreakdown, throughput } from '../data/analytics';
+import { accuracySeries } from '../data/analytics';
+import { fetchEmails } from '../api/emails';
+import { EmailItem } from '../types';
 
 const ranges = ['7D', '30D', '90D'];
 const R = 34;
@@ -10,8 +12,54 @@ const C = 2 * Math.PI * R;
 
 export function Analytics() {
   const [range, setRange] = useState('7D');
-  const data = accuracySeries[range];
-  const total = issueBreakdown.reduce((sum, s) => sum + s.count, 0);
+  const [emails, setEmails] = useState<EmailItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchEmails()
+      .then(setEmails)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const stats = useMemo(() => {
+    const mismatch = emails.filter((email) => email.status === 'mismatch').length;
+    const review = emails.filter((email) => email.status === 'review').length;
+    const noMismatch = emails.filter((email) => email.status === 'no-mismatch').length;
+    const documentChecks = noMismatch + mismatch + review;
+    const resolvedChecks = noMismatch + mismatch;
+    const accuracy = resolvedChecks === 0 ? 0 : Math.round(noMismatch / resolvedChecks * 100);
+    const totalIssues = mismatch + review;
+
+    return {
+      mismatch,
+      review,
+      noMismatch,
+      documentChecks,
+      accuracy,
+      totalIssues,
+      issueBreakdown: [
+        { label: 'Mismatch', count: mismatch, color: '#e11d48' },
+        { label: 'Review', count: review, color: '#f59e0b' },
+        { label: 'Low confidence', count: 0, color: '#1f5490' },
+        { label: 'Other', count: Math.max(emails.length - totalIssues, 0), color: '#cbd5e1' },
+      ].map((issue) => ({
+        ...issue,
+        share: emails.length === 0 ? 0 : Math.round(issue.count / emails.length * 100),
+      })),
+    };
+  }, [emails]);
+
+  const data = accuracySeries[range].map((point) => ({
+    ...point,
+    value: stats.accuracy,
+  }));
+  const total = stats.totalIssues;
+  const issueBreakdown = stats.issueBreakdown;
+  const throughput = [
+    { label: 'Emails processed', value: loading ? '...' : String(emails.length), delta: 'Current inbox' },
+    { label: 'Documents checked', value: loading ? '...' : String(stats.documentChecks), delta: 'Current inbox' },
+    { label: 'Avg. check time', value: 'N/A', delta: 'Not tracked' },
+  ];
 
   let offset = 0;
 
@@ -43,8 +91,8 @@ export function Analytics() {
           </p>
           <p className="mt-2 flex items-center gap-1 text-[12px] font-semibold text-good">
             <ArrowUpRightIcon className="h-3.5 w-3.5" />
-            {accuracyDelta[range]}
-            <span className="font-medium text-muted">vs. previous period</span>
+            {loading ? '...' : 'Live'}
+            <span className="font-medium text-muted">current processed emails</span>
           </p>
           <div className="mt-3">
             <AccuracyChart data={data} />

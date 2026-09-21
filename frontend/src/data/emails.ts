@@ -51,5 +51,5 @@ export const inboxFilters = [
 { id: 'all', label: 'All', count: 10 },
 { id: 'no-mismatch', label: 'No issues', count: 7 },
 { id: 'mismatch', label: 'Mismatch', count: 1 },
-{ id: 'review', label: 'Review', count: 1 }] as
+{ id: 'review', label: 'Review Required', count: 1 }] as
 const;

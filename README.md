@@ -68,3 +68,19 @@ Before merging:
 3. Resolve merge conflicts.
 4. Get another teammate to review the PR when possible.
 
+
+****
+TO REVAMP
+
+• Problem-solution alignment
+• AI and cloud infrastructure integration
+• User feedback/testing
+• Coding challenges
+• Success metrics
+• Scalability plans
+
+• Project name
+• Project description
+• Setup instructions
+• GitHub/GitLab repository link
+• Clear README.md

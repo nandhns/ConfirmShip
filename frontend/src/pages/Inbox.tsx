@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRightIcon, SearchIcon } from 'lucide-react';
-import { fetchEmails } from '../api/emails';
-import { inboxFilters } from '../data/emails';
+import { fetchEmails, getInboxFilters } from '../api/emails';
 import { StatusPill } from '../components/StatusPill';
 import { EmailItem } from '../types';
 
@@ -31,7 +30,7 @@ export function Inbox() {
   }, []);
 
   const visible = emails.filter((email) => {
-    const matchesFilter = filter === 'all' || e.status === filter;
+    const matchesFilter = filter === 'all' || email.status === filter;
     const q = query.trim().toLowerCase();
     const matchesQuery =
       !q ||
@@ -39,14 +38,13 @@ export function Inbox() {
       email.sender.toLowerCase().includes(q);
     return matchesFilter && matchesQuery;
   });
+  const inboxFilters = getInboxFilters(emails);
 
   const open = (id: string) => {
-    const item = emails.find((e) => e.id === id);
-    if (!item) return;
-    if (item.reviewId) navigate(`/review/${item.reviewId}`);else
-    navigate(`/shipment/${item.shipmentId ?? '4821'}`);
+    navigate(`/email/${id}`);
   };
 
+  
   return (
     <div className="screen-scroll h-full bg-canvas pb-[86px]">
       <div className="sticky top-0 z-10 bg-canvas/95 px-5 pb-3 pt-2 backdrop-blur">

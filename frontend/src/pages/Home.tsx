@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowDownRightIcon,
@@ -12,13 +12,8 @@ import {
 'lucide-react';
 import { LogoLockup } from '../components/Logo';
 import { StatusPill } from '../components/StatusPill';
-import { emails } from '../data/emails';
-
-const metrics = [
-{ label: 'Emails processed', value: '10', delta: '20%', up: true },
-{ label: 'Document checks', value: '3', delta: '50%', up: true },
-{ label: 'Mismatches', value: '1', delta: '1', up: true, bad: true },
-{ label: 'Human review', value: '1', delta: '0', up: false }];
+import { fetchEmails } from '../api/emails';
+import { EmailItem } from '../types';
 
 
 const activityIcon = {
@@ -31,7 +26,27 @@ const activityIcon = {
 
 export function Home() {
   const navigate = useNavigate();
+  const [emails, setEmails] = useState<EmailItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchEmails()
+      .then(setEmails)
+      .finally(() => setLoading(false));
+  }, []);
+
   const recent = emails.slice(0, 3);
+  const documentChecks = emails.filter((email) =>
+    ['no-mismatch', 'mismatch', 'review'].includes(email.status)
+  ).length;
+  const mismatchCount = emails.filter((email) => email.status === 'mismatch').length;
+  const reviewCount = emails.filter((email) => email.status === 'review').length;
+  const metrics = [
+    { label: 'Emails processed', value: emails.length, delta: 'Live', up: true },
+    { label: 'Document checks', value: documentChecks, delta: 'Live', up: true },
+    { label: 'Mismatches', value: mismatchCount, delta: 'Live', up: mismatchCount > 0, bad: mismatchCount > 0 },
+    { label: 'Human review', value: reviewCount, delta: 'Live', up: false },
+  ];
 
   return (
     <div className="screen-scroll h-full bg-canvas pb-[86px]">
@@ -65,7 +80,7 @@ export function Home() {
           <div key={m.label} className="rounded-2xl border border-hair bg-white p-3.5 shadow-card">
               <p className="text-[12px] font-medium leading-4 text-muted">{m.label}</p>
               <p className="mt-2 text-[26px] font-bold leading-none tracking-tight text-navy-900">
-                {m.value}
+                {loading ? '...' : m.value}
               </p>
               <p
               className={`mt-2 flex items-center gap-1 text-[11.5px] font-semibold ${
@@ -109,11 +124,7 @@ export function Home() {
               <li key={item.id} className={i > 0 ? 'border-t border-hair' : ''}>
                 <button
                   type="button"
-                  onClick={() =>
-                  item.reviewId ?
-                  navigate(`/review/${item.reviewId}`) :
-                  navigate(`/shipment/${item.shipmentId ?? '4821'}`)
-                  }
+                  onClick={() => navigate(`/email/${item.id}`)}
                   className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-slate-50">
                   
                   <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${wrap}`}>
