@@ -31,7 +31,6 @@ def classify_email(email: dict) -> ClassificationResult:
     subject = email.get("subject", "")
     body = email.get("body", "")
     email_id = email.get("email_id", "")
-    attachments = email.get("attachments", [])
 
     text_lower = f"{subject}\n{body}".lower()
     subject_upper = subject.upper()
@@ -57,9 +56,13 @@ def classify_email(email: dict) -> ClassificationResult:
             reason="Shipping Instruction request detected"
         )
 
-    # 4. BL comparison (Subject keywords or coded subjects like "AIE - POD - MSC(...)")
-    has_carrier = any(code in subject_upper for code in CARRIERS)
-    is_coded_subject = any(dept in subject_upper for dept in DEPTS) and has_carrier
+    # 4. BL comparison: Use bounded token matching to prevent false carrier triggers (e.g., SINGAPORE triggering SIN)
+    subject_tokens = {
+        token.strip(".,:;[]_")
+        for token in subject_upper.replace("-", " ").replace("(", " ").replace(")", " ").replace("/", " ").split()
+    }
+    has_carrier = any(code in subject_tokens for code in CARRIERS)
+    is_coded_subject = any(dept in subject_tokens for dept in DEPTS) and has_carrier
 
     if any(k in text_lower for k in BL_COMPARISON_KEYWORDS) or is_coded_subject:
         return ClassificationResult(

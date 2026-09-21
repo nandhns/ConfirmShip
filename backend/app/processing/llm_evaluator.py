@@ -8,24 +8,38 @@ def evaluate_llm_extraction(
 ) -> dict[str, Any]:
     """
     Evaluates LLM output against known ground truth.
-    Calculates precision, recall, and hallucination indicators.
+    Calculates accuracy, handles numeric equality, and penalizes hallucinated/extra fields.
     """
     results = {}
     matched = 0
-    total_fields = len(ground_truth_fields)
 
-    for field, expected_val in ground_truth_fields.items():
+    all_keys = set(ground_truth_fields.keys()).union(predicted_fields.keys())
+
+    for field in sorted(all_keys):
+        expected_val = ground_truth_fields.get(field)
         pred_val = predicted_fields.get(field)
-        is_match = (str(pred_val).strip().lower() == str(expected_val).strip().lower())
-        if is_match:
+
+        # Handle numeric comparison (e.g. 2 vs 2.0)
+        if isinstance(pred_val, (int, float)) and isinstance(expected_val, (int, float)):
+            is_match = float(pred_val) == float(expected_val)
+        elif expected_val is not None and pred_val is not None:
+            is_match = str(pred_val).strip().lower() == str(expected_val).strip().lower()
+        else:
+            is_match = (expected_val is None and pred_val is None)
+
+        if is_match and expected_val is not None:
             matched += 1
+
         results[field] = {
             "expected": expected_val,
             "predicted": pred_val,
-            "matched": is_match
+            "matched": is_match,
+            "is_hallucinated": (expected_val is None and pred_val is not None)
         }
 
-    accuracy = matched / total_fields if total_fields > 0 else 0.0
+    total_keys = len(all_keys)
+    accuracy = matched / total_keys if total_keys > 0 else 0.0
+
     return {
         "accuracy": accuracy,
         "field_breakdown": results,

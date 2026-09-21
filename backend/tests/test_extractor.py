@@ -24,16 +24,16 @@ Gross Wt (kgs): 21,577 KG
         f.write(sample_si)
         f_path = f.name
 
-    doc, err = extract_document_from_file("email_001", f_path)
+    doc, err = extract_document_from_file("email_001", f_path, use_llm_fallback=False)
     assert err is None
     assert doc is not None
-    assert doc.fields["shipper"].normalized_value == "APRIL FAR EAST (M) SDN BHD"
-    assert doc.fields["consignee"].normalized_value == "MOORIM SP CO., LTD"
-    assert doc.fields["notify_party"].normalized_value == "UAB NOVAKOPA"
-    assert doc.fields["port_of_loading"].normalized_value == "PORT KLANG"
-    assert doc.fields["port_of_discharge"].normalized_value == "CALLAO"
-    assert doc.fields["container_count"].normalized_value == 2
-    assert doc.fields["gross_weight_kg"].normalized_value == 21577.0
+    assert doc.fields["shipper"].value == "APRIL FAR EAST (M) SDN BHD"
+    assert doc.fields["consignee"].value == "MOORIM SP CO., LTD"
+    assert doc.fields["notify_party"].value == "UAB NOVAKOPA"
+    assert doc.fields["port_of_loading"].value == "PORT KLANG (WESTPORT), MALAYSIA (MYPKG)"
+    assert doc.fields["port_of_discharge"].value == "CALLAO, PERU (PECLL)"
+    assert doc.fields["container_count"].value == "2 x 40'HC"
+    assert doc.fields["gross_weight_kg"].value == "21,577 KG"
 
 
 def test_extract_blank_field_flags_missing_value():
@@ -50,6 +50,6 @@ Gross Weight: 21,577 KG
         f.write(sample_si_with_blanks)
         f_path = f.name
 
-    doc, err = extract_document_from_file("email_516", f_path)
+    doc, err = extract_document_from_file("email_516", f_path, use_llm_fallback=False)
     assert doc is None
     assert err == "missing_value"

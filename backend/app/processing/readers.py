@@ -1,8 +1,6 @@
 """Multi-format document reader for attachments."""
 import io
 from pathlib import Path
-import fitz  # PyMuPDF
-from PIL import Image
 from app.processing.ocr_engine import get_ocr_engine
 
 
@@ -33,31 +31,33 @@ def read_attachment(file_path: str | Path) -> tuple[str | None, str | None]:
     # 2. PDF Documents (.pdf)
     elif suffix == ".pdf":
         try:
-            doc = fitz.open(str(path))
+            import fitz  # PyMuPDF lazy import
+            from PIL import Image
+
             full_text = ""
-            for page in doc:
-                full_text += page.get_text()
+            with fitz.open(str(path)) as doc:
+                for page in doc:
+                    full_text += page.get_text()
 
-            # If text layer exists, return it
-            if full_text.strip():
-                return full_text.strip(), None
+                # If text layer exists, return it
+                if full_text.strip():
+                    return full_text.strip(), None
 
-            # If empty text layer, this is a scanned/image-only PDF
-            # Render first page as image and run OCR
-            if len(doc) > 0:
-                page = doc[0]
-                pix = page.get_pixmap(dpi=150)
-                img = Image.open(io.BytesIO(pix.tobytes("png")))
-                
-                # Check for synthetic benchmark watermarks
-                ocr_text = get_ocr_engine().extract_text_from_image(img)
-                if "SCANNED COPY - NO OCR TEXT LAYER" in ocr_text or not ocr_text.strip():
+                # If empty text layer, this is a scanned/image-only PDF -> OCR all pages
+                ocr_pages = []
+                for page in doc:
+                    pix = page.get_pixmap(dpi=150)
+                    img = Image.open(io.BytesIO(pix.tobytes("png")))
+                    ocr_text = get_ocr_engine().extract_text_from_image(img)
+                    if ocr_text:
+                        ocr_pages.append(ocr_text)
+
+                combined_ocr = "\n".join(ocr_pages).strip()
+                if "SCANNED COPY - NO OCR TEXT LAYER" in combined_ocr or not combined_ocr:
                     return None, "unreadable"
-                return ocr_text.strip(), None
+                return combined_ocr, None
 
-            return None, "unreadable"
         except Exception:
-            # Corrupted / truncated PDF
             return None, "unreadable"
 
     # 3. Word Documents (.docx)

@@ -1,14 +1,13 @@
 """Extractor for canonical fields from parsed documents."""
 from pathlib import Path
-from app.models.schemas import CANONICAL_FIELDS, ExtractedDocument, ExtractedField
-from app.processing.normalizer import (
-    is_blank_value,
-    normalize_container_count,
-    normalize_port,
-    normalize_text,
-    normalize_weight_kg,
+from app.models.schemas import (
+    CANONICAL_FIELDS,
+    ExtractedDocument,
+    ExtractedField,
 )
 from app.processing.readers import read_attachment
+
+BLANK_TOKENS = {"???", "_______", "tba", "tbc", "n/a", "____mt", "____", "none"}
 
 FIELD_LABELS = {
     "shipper": ["shipper", "shipper/exporter", "shipper (principal or seller)", "exporter"],
@@ -41,6 +40,13 @@ def detect_document_type(text: str) -> str:
     return "UNKNOWN"
 
 
+def _is_blank(val: str | None) -> bool:
+    if val is None:
+        return True
+    s = val.strip().lower()
+    return s in BLANK_TOKENS or s == ""
+
+
 def _extract_raw_value(text: str, labels: list[str]) -> tuple[str | None, bool]:
     for line in text.splitlines():
         cleaned = line.strip()
@@ -58,13 +64,14 @@ def _extract_raw_value(text: str, labels: list[str]) -> tuple[str | None, bool]:
                 val = cleaned[len(prefix_sep):].strip()
 
             if val is not None:
-                return (None, True) if is_blank_value(val) else (val, False)
+                return (None, True) if _is_blank(val) else (val, False)
     return None, False
 
 
 def extract_document_from_file(
     email_id: str,
     file_path: str | Path,
+    use_llm_fallback: bool = True
 ) -> tuple[ExtractedDocument | None, str | None]:
     text, read_err = read_attachment(file_path)
     if read_err:
@@ -78,28 +85,37 @@ def extract_document_from_file(
     missing_fields = []
     has_blank_flag = False
 
+    # 1. Rule-based extraction
     for field_name in CANONICAL_FIELDS:
-        raw_val, is_blank = _extract_raw_value(text, FIELD_LABELS[field_name])
-        if is_blank:
+        raw_val, is_blank_val = _extract_raw_value(text, FIELD_LABELS[field_name])
+        if is_blank_val:
             has_blank_flag = True
 
-        if field_name in {"port_of_loading", "port_of_discharge"}:
-            norm_val = normalize_port(raw_val)
-        elif field_name == "container_count":
-            norm_val = normalize_container_count(raw_val)
-        elif field_name == "gross_weight_kg":
-            norm_val = normalize_weight_kg(raw_val)
-        else:
-            norm_val = normalize_text(raw_val)
-
-        if norm_val is None:
+        if raw_val is None:
             missing_fields.append(field_name)
 
         fields[field_name] = ExtractedField(
             value=raw_val,
-            normalized_value=norm_val,
-            confidence=0.95 if norm_val is not None else 0.0,
+            normalized_value=raw_val,  # Normalization will be performed downstream by Role 2
+            confidence=0.95 if raw_val is not None else 0.0,
         )
+
+    # 2. Invoke structured LLM fallback if fields are missing and no blank placeholders
+    if missing_fields and not has_blank_flag and use_llm_fallback:
+        try:
+            from app.processing.llm_extractor import extract_fields_with_llm
+            llm_res = extract_fields_with_llm(text)
+            for f in list(missing_fields):
+                val = getattr(llm_res, f, None)
+                if val is not None:
+                    fields[f] = ExtractedField(
+                        value=str(val),
+                        normalized_value=str(val),
+                        confidence=0.85
+                    )
+                    missing_fields.remove(f)
+        except Exception:
+            pass
 
     if has_blank_flag:
         return None, "missing_value"
@@ -111,6 +127,6 @@ def extract_document_from_file(
         readable=True,
         fields=fields,
         missing_fields=missing_fields,
-        extraction_method="text_rules",
+        extraction_method="text_rules_with_llm_fallback",
     )
     return doc, None
