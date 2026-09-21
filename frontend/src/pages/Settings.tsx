@@ -92,7 +92,7 @@ export function Settings() {
           {[
           { Icon: CpuIcon, label: 'Model version', value: 'v1.2.0' },
           { Icon: ShieldIcon, label: 'Data privacy', value: 'View policy' },
-          { Icon: InfoIcon, label: 'About ShipSure AI', value: 'Learn more' }].
+          { Icon: InfoIcon, label: 'About ConfirmShip AI', value: 'Learn more' }].
           map((row, i) =>
           <li key={row.label}>
               <button
