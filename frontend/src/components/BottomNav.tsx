@@ -13,12 +13,10 @@ import {
   ShieldCheckIcon,
   XIcon } from
 'lucide-react';
-import { reviews } from '../data/reviews';
-
 const items = [
 { to: '/home', label: 'Home', Icon: HomeIcon },
 { to: '/inbox', label: 'Inbox', Icon: InboxIcon },
-{ to: '/review', label: 'Review', Icon: ShieldCheckIcon, badge: reviews.length },
+{ to: '/review', label: 'Review', Icon: ShieldCheckIcon, badge: '99+' },
 { to: '/analytics', label: 'Reports', Icon: BarChart3Icon }];
 
 

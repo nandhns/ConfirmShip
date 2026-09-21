@@ -10,6 +10,7 @@ import { ReviewQueue } from './pages/ReviewQueue';
 import { HumanReview } from './pages/HumanReview';
 import { Analytics } from './pages/Analytics';
 import { Settings } from './pages/Settings';
+import { EmailDetail } from './pages/EmailDetail';
 
 function AppShell() {
   return (
@@ -43,6 +44,7 @@ export function App() {
           <Route path="/review/:id" element={<HumanReview />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/email/:id" element={<EmailDetail />} />
         </Route>
         <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
