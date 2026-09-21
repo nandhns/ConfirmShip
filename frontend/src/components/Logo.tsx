@@ -6,7 +6,7 @@ interface LogoMarkProps {
 
 export function LogoMark({ className = 'h-7 w-7' }: LogoMarkProps) {
   return (
-    <svg viewBox="0 0 32 32" className={className} role="img" aria-label="ShipSure AI">
+    <svg viewBox="0 0 32 32" className={className} role="img" aria-label="ConfirmShip AI">
       <path
         d="M4 20.5c2.6 0 2.6-2.2 5.2-2.2s2.6 2.2 5.2 2.2 2.6-2.2 5.2-2.2 2.6 2.2 5.2 2.2c2 0 2.5-1.3 3.9-1.9"
         fill="none"
