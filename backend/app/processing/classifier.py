@@ -6,8 +6,11 @@ DEPTS = ["AIE", "AFPTME", "AFRT", "AFEMY"]
 
 SPAM_KEYWORDS = [
     "unsubscribe", "winner", "promotion", "click here", "limited offer",
-    "verify your account", "gift card", "parcel is on hold", "weird trick",
-    "hot singles", "undelivered messages", "avoid suspension"
+    "limited time offer", "verify your account", "verify account immediately",
+    "gift card", "parcel is on hold", "weird trick", "hot singles",
+    "undelivered messages", "avoid suspension", "bitcoin", "guaranteed",
+    "exclusive offer", "90% off", "customs fee", "confirm your bank details",
+    "invoice payment - kindly confirm",
 ]
 
 INVOICE_KEYWORDS = [
@@ -15,9 +18,18 @@ INVOICE_KEYWORDS = [
     "demurrage", "cancel invoice", "missing gr", "telex release charges", "total freight"
 ]
 
-SI_REQUEST_KEYWORDS = [
+SI_REQUEST_BODY_KEYWORDS = [
     "request si", "si needed", "cust si", "latest si", "shipping instruction needed",
-    "submit si & aed"
+    "please find shipping instruction",
+]
+
+SI_REQUEST_SUBJECT_MARKERS = [
+    "REQUEST SI", "SI NEEDED", "CUST SI", "LATEST SI", "SHIPPING INSTRUCTION NEEDED",
+]
+
+GENERAL_OPERATIONAL_MARKERS = [
+    "billing process completed", "no action required", "rpa bot",
+    "daily berthing report", "berthing report attached",
 ]
 
 BL_COMPARISON_KEYWORDS = [
@@ -25,6 +37,17 @@ BL_COMPARISON_KEYWORDS = [
     "bill of lading", "compare si", "attached are the si", "request bl draft",
     "amend bl"
 ]
+
+
+def _subject_indicates_si_request(subject: str) -> bool:
+    subject_upper = subject.upper().replace("_", " ")
+    if " SI - " in f" {subject_upper} " or subject_upper.startswith("SI -"):
+        return True
+    return any(marker in subject_upper for marker in SI_REQUEST_SUBJECT_MARKERS)
+
+
+def _is_general_operational_update(text_lower: str) -> bool:
+    return any(marker in text_lower for marker in GENERAL_OPERATIONAL_MARKERS)
 
 
 def classify_email(email: dict) -> ClassificationResult:
@@ -42,21 +65,16 @@ def classify_email(email: dict) -> ClassificationResult:
             reason="Phishing/Spam indicators detected"
         )
 
-    # 2. Invoice queries
-    if any(k in text_lower for k in INVOICE_KEYWORDS):
-        return ClassificationResult(
-            email_id=email_id, category="INVOICE_QUERY", confidence=0.95,
-            reason="Charges / Invoice query detected"
-        )
-
-    # 3. SI requests
-    if any(k in text_lower for k in SI_REQUEST_KEYWORDS) or subject_upper.startswith("SI - "):
+    # 2. SI requests (before invoice — SI bodies often mention billing/charges)
+    si_from_subject = _subject_indicates_si_request(subject)
+    si_from_body = any(k in text_lower for k in SI_REQUEST_BODY_KEYWORDS)
+    if si_from_subject or si_from_body:
         return ClassificationResult(
             email_id=email_id, category="SI_REQUEST", confidence=0.95,
             reason="Shipping Instruction request detected"
         )
 
-    # 4. BL comparison: Use bounded token matching to prevent false carrier triggers (e.g., SINGAPORE triggering SIN)
+    # 3. BL comparison (before invoice — BL threads often mention commercial invoices)
     subject_tokens = {
         token.strip(".,:;[]_")
         for token in subject_upper.replace("-", " ").replace("(", " ").replace(")", " ").replace("/", " ").split()
@@ -68,6 +86,13 @@ def classify_email(email: dict) -> ClassificationResult:
         return ClassificationResult(
             email_id=email_id, category="BL_COMPARISON", confidence=0.98,
             reason="BL document verification requested"
+        )
+
+    # 4. Invoice queries
+    if any(k in text_lower for k in INVOICE_KEYWORDS) and not _is_general_operational_update(text_lower):
+        return ClassificationResult(
+            email_id=email_id, category="INVOICE_QUERY", confidence=0.95,
+            reason="Charges / Invoice query detected"
         )
 
     # 5. General fallback

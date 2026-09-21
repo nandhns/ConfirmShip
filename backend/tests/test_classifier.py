@@ -67,3 +67,36 @@ def test_classify_general():
     }
     res = classify_email(email)
     assert res.category == "GENERAL"
+
+
+def test_classify_general_reminder_submit_si_not_si_request():
+    email = {
+        "email_id": "email_012",
+        "subject": "_Reminder_Paper - Submit SI & AED_26-01-2026",
+        "body": "Kindly find the daily berthing report attached.",
+        "attachments": [],
+    }
+    res = classify_email(email)
+    assert res.category == "GENERAL"
+
+
+def test_classify_si_reply_subject_with_invoice_in_thread():
+    email = {
+        "email_id": "email_019",
+        "subject": "RE_ SI - SIN706562729 - DIRECT(PIL) - 5RCY-72046 - MERSIN_TURKEY",
+        "body": "Please find Shipping instruction for 5RCY-72046.\nLocal charges as per invoice.",
+        "attachments": [],
+    }
+    res = classify_email(email)
+    assert res.category == "SI_REQUEST"
+
+
+def test_classify_bl_with_commercial_invoice_mention():
+    email = {
+        "email_id": "email_501",
+        "subject": "RE_ TO CONFIRM DOCS _ 5RSG-51584 _ HOUSTON_US",
+        "body": "Please find attached the SI and the Commercial Invoice. Kindly confirm the BL is in order.",
+        "attachments": ["SI.txt", "CI.txt"],
+    }
+    res = classify_email(email)
+    assert res.category == "BL_COMPARISON"

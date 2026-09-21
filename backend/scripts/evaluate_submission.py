@@ -1,5 +1,6 @@
 """Generates submission.json and evaluates score against ground truth."""
 import json
+import os
 from pathlib import Path
 import sys
 import subprocess
@@ -45,13 +46,16 @@ def main():
     print("RUNNING OFFICIAL BENCHMARK SCORING")
     print("="*50)
 
+    score_env = os.environ.copy()
+    score_env.setdefault("PYTHONIOENCODING", "utf-8")
+
     subprocess.run([
         sys.executable,
         "challenge/server/score_cli.py",
         str(OUTPUT_FILE),
         "--ground-truth",
         str(DATA_DIR / "ground_truth.json")
-    ], check=True)
+    ], check=True, env=score_env)
 
 
 if __name__ == "__main__":
