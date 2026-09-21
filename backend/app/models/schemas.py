@@ -159,7 +159,7 @@ class ReviewAuditEntry(BaseModel):
 
 class ReviewRecord(BaseModel):
     email_id: str
-    status: str
+    status: str = "processing"
     reason: str | None = None
     details: str | None = None
     evidence: list[str] = Field(default_factory=list)
