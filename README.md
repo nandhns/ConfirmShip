@@ -1,86 +1,95 @@
-## Overview 
-TBD
+# ConfirmShip
+### Smarter Shipping. Safer Trade.
 
-## Tech Stack 
-TBD
+Short project description
 
-## Project Structure 
-TBD
+## Problem Statement
+- Current shipping-document workflow
+- Problems with manual verification
+- ConfirmShip's solution
+
+## Key Features
+- Email classification
+- Shipping Instruction / Bill of Lading extraction
+- Automated field verification
+- Mismatch detection
+- Human review / uncertainty handling
+- Review/correction workflow (only if implemented)
+
+## Technical Architecture
+- Architecture diagram
+- Frontend → Backend → Challenge Server → AI/extraction
+- Data flow / processing pipeline
+- Deployment architecture
+
+## Technology Stack
+### Frontend
+### Backend
+### AI / Document Processing
+### Infrastructure / Deployment
+
+## Implementation Details
+### 1. Email Classification
+### 2. Document Extraction
+### 3. Field Normalisation
+### 4. SI–BL Verification
+### 5. Uncertainty / Review Handling
+### 6. API Design
+
+## Challenges Faced
+- Handling different document formats
+- Extracting inconsistent shipping-document fields
+- Normalising values before comparison
+- Managing uncertain/missing values
+- Integrating the challenge inbox
+- Deployment/configuration issues
+- AI reliability/fallbacks
+
+For each:
+**Challenge → Approach → Result**
+
+## Results / Success Metrics
+- Test cases
+- Classification/extraction/verification results
+- Processing time if measured
+- User/demo feedback if available
+
+## Testing & Validation
+- What was tested
+- Edge cases
+- Validation approach
+
+## Deployment
+- Vercel frontend
+- Render FastAPI backend
+- Render challenge server
+- Environment variables
+
+## Local Setup
+1. Clone
+2. Environment variables
+3. Challenge server
+4. Backend
+5. Frontend
+
+## Future Roadmap
+- Production email integration
+- More shipping document types
+- Improved AI/OCR
+- Persistent database/audit history
+- Human-in-the-loop review
+- Authentication/RBAC
+- Scalability/cloud improvements
+
+## Project Structure
+
+## Team
+- Anis Nadiah 
+- Muhammad Aiman 
+- Muhammad Zulfaqa
+- Syed Ahmad Wazif
 
 
-## Getting Started 
-### Challenge Environment Setup
-The challenge server and dataset provided by the organisers are not included
-in this repository.
-
-1. Download and extract the `sdoc-hackathon-docker` ZIP provided by the organisers.
-
-2. Copy the provided `server/` and `data_v2/` directories into a `challenge/`
-directory at the project root:
-
-ConfirmShip/
-├── backend/
-├── frontend/
-├── challenge/
-│   ├── server/
-│   └── data_v2/
-├── docker-compose.yml
-└── README.md
-
-3. From the project root, start the challenge server with this command:
-
-docker compose up --build (Or use Docker Desktop)
-
-## Development Workflow 
-### Branching 
-
-Do not develop directly on `main`
-
-Before starting a new task, pull the latest changes and create a new branch. 
-
-Branch naming: 
-* feature/<name> : new features 
-* fix/<name> : bug fixes
-* docs/<name> : documentation changes 
-
-Examples: 
-feature/email-classification
-feature/document-extraction
-feature/inbox-ui
-fix/weight-normalisation 
-
-###Commit & Pull Requests
-
-Use short, descriptive commit messages.
-
-Examples:
-feat: add document extraction
-fix: handle missing attachments
-docs: update setup instructions
-test: add comparison tests
-
-Push your branch, then open a Pull Request into main. 
-
-Before merging:
-
-1. Make sure the feature works locally.
-2. Do not commit .env, API keys, or files under challenge/.
-3. Resolve merge conflicts.
-4. Get another teammate to review the PR when possible.
-
-
-****
-TO REVAMP
-
-• Problem-solution alignment
-• AI and cloud infrastructure integration
-• User feedback/testing
-• Coding challenges
-• Success metrics
-• Scalability plans
-
-• Project name
-• Project description
-• Setup instructions
-• GitHub/GitLab repository link
-• Clear README.md
+## 🔗 Links
+- Live Demo: https://youtu.be/hPz6wnGT9nA
+- Deck: https://docs.google.com/presentation/d/1xasvfEhxCLQzPck7Y9f9_hh-IsV07hoD/edit?usp=drive_link&ouid=110217070522757834845&rtpof=true&sd=true
