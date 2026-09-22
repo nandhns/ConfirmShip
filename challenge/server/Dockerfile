@@ -5,7 +5,7 @@ WORKDIR /app
 # deps first for layer caching.
 # --trusted-host lets the build succeed behind corporate proxies that inject a
 # self-signed cert into the TLS chain (harmless on normal networks).
-COPY requirements.txt .
+COPY server/requirements.txt .
 RUN pip install --no-cache-dir \
     --trusted-host pypi.org \
     --trusted-host files.pythonhosted.org \
