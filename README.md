@@ -532,7 +532,7 @@ Ensure the following are installed:
 ## 1. Clone the Repository
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/nandhns/ConfirmShip.git
 cd ConfirmShip
 ```
 
