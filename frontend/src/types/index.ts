@@ -32,7 +32,7 @@ export interface Shipment {
   summaryLines: string[];
 }
 
-export type ReviewReason = 'review-required' | 'low-confidence';
+export type ReviewReason = 'review-required' | 'low-confidence' | 'mismatch';
 
 export interface ReviewItem {
   id: string;

@@ -8,9 +8,19 @@ def test_review_store_persists_corrections_and_attempts(tmp_path, monkeypatch):
     assert increment_attempt("email_test") == 1
     record = add_correction(
         "email_test",
-        {"field": "consignee", "document": "bl", "value": "Correct consignee"},
+        {
+            "field": "consignee",
+            "document": "bl",
+            "value": "Correct consignee",
+            "reviewer": "Aiman",
+            "comment": "Confirmed against source document",
+        },
+        old_value="Incorrect consignee",
     )
 
     assert record["attempts"] == 1
     assert record["corrections"][0]["value"] == "Correct consignee"
+    assert record["audit_log"][0]["reviewer"] == "Aiman"
+    assert record["audit_log"][0]["old_value"] == "Incorrect consignee"
+    assert record["audit_log"][0]["new_value"] == "Correct consignee"
     assert get_review("email_test")["status"] == "corrected"
