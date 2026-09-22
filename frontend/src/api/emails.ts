@@ -49,6 +49,8 @@ export interface ReviewRecord {
   attempts: number;
 }
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 function mapStatus(processed: ProcessedEmail): EmailStatus {
   if (processed.classification.category === 'INVOICE_QUERY') {
     return 'invoice';
@@ -107,8 +109,8 @@ export function getInboxFilters(emails: EmailItem[]) {
 
 async function fetchProcessedEmails() {
   const [emailResponse, processedResponse] = await Promise.all([
-    fetch('/api/emails'),
-    fetch('/api/process/processed'),
+    fetch(`${API_URL}/api/emails`),
+    fetch(`${API_URL}/api/process/processed`),
   ]);
 
   if (!emailResponse.ok) {
