@@ -11,8 +11,13 @@ RUN pip install --no-cache-dir \
     --trusted-host files.pythonhosted.org \
     -r requirements.txt
 
-# app code (data + ground truth come in as mounts, not baked into the image)
-COPY scoring.py app.py score_cli.py ./
+# Challenge server
+COPY server/scoring.py server/app.py server/score_cli.py ./
+
+# Public challenge data needed for the demo
+COPY data_v2/inbox /data/inbox
+COPY data_v2/attachments /data/attachments
+COPY data_v2/sample_submission.json /data/sample_submission.json
 
 EXPOSE 8000
 
