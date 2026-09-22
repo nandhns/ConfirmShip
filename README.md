@@ -714,6 +714,7 @@ Rather than treating automation as a replacement for human judgement, the system
 ## 🔗 Links
 - Live Demo: https://youtu.be/hPz6wnGT9nA
 - Deck: https://docs.google.com/presentation/d/1xasvfEhxCLQzPck7Y9f9_hh-IsV07hoD/edit?usp=drive_link&ouid=110217070522757834845&rtpof=true&sd=true
-- Demo Link: https://confirmship.vercel.app/
+- Demo Link: https://confirmship.vercel.app/ (Do note that we have limit our memory limit, thus why the data isn't being displayed correctly.)
+- Backend/FastAPI Docs: https://confirmship.onrender.com/docs
 
-Do note that we have limit our memory limit, thus why the data isn't being displayed correctly. 
+
